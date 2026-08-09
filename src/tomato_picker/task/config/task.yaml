@@ -1,0 +1,11 @@
+pick_task_node:
+  ros__parameters:
+    action_name: /tomato_picker/task/pick
+    motion_action: /tomato_picker/motion/move_arm
+    eef_service: /tomato_picker/eef/command
+    motion_timeout_sec: 30.0
+    service_timeout_sec: 3.0
+    default_approach_distance: 0.08
+    default_retreat_distance: 0.10
+    motion_velocity_scale: 0.15
+    motion_acceleration_scale: 0.15

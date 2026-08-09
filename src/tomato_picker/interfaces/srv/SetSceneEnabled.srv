@@ -1,0 +1,5 @@
+bool enabled
+bool clear_octomap
+---
+bool success
+string message

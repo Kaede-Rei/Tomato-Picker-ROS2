@@ -1,0 +1,12 @@
+arm_motion_node:
+  ros__parameters:
+    action_name: /tomato_picker/motion/move_arm
+    planning_group: arm
+    home_named_target: home
+    end_effector_link: ""
+    planning_time: 5.0
+    velocity_scale: 0.20
+    acceleration_scale: 0.20
+    cartesian_eef_step: 0.005
+    cartesian_jump_threshold: 0.0
+    cartesian_min_fraction: 0.95

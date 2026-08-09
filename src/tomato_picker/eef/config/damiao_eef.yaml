@@ -1,0 +1,26 @@
+# DM4310 EEF Torque_Pos configuration
+#
+# Identity, homing and command formulas reproduce Dual-DM-Arm-LeRobot IL-RL.
+# The bus settings must match the SerialArm ARM profile so BusPool reuses main_can.
+
+damiao:
+  bus: main_can
+  serial_port: /dev/ttyACM0
+  baudrate: 921600
+
+  motor:
+    motor_id: 7
+    master_id: 23
+    motor_type: DM4310
+
+eef:
+  open_position: 0.0
+  closed_position: -5.23
+  max_gripper_torque: 1.0
+  io_rate_hz: 20.0
+  max_consecutive_feedback_failures: 3
+
+  homing:
+    velocity: 10.0
+    torque_threshold: 1.2
+    timeout_s: 5.0

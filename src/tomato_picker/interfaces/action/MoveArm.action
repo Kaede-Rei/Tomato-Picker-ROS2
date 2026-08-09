@@ -1,0 +1,22 @@
+uint8 HOME=0
+uint8 JOINT=1
+uint8 POSE=2
+uint8 LINE=3
+uint8 command_type
+
+geometry_msgs/PoseStamped target_pose
+string[] joint_names
+float64[] joints
+float64 velocity_scale
+float64 acceleration_scale
+bool execute
+---
+bool success
+int32 error_code
+string message
+geometry_msgs/PoseStamped final_pose
+float64[] final_joints
+---
+string stage
+float32 progress
+geometry_msgs/PoseStamped current_pose

@@ -1,0 +1,4 @@
+eef_mock_node:
+  ros__parameters:
+    service_name: /tomato_picker/eef/command
+    initial_position: 0.0

@@ -1,0 +1,24 @@
+geometry_msgs/PoseStamped target_pose
+bool use_approach_pose
+geometry_msgs/PoseStamped approach_pose
+bool use_retreat_pose
+geometry_msgs/PoseStamped retreat_pose
+bool use_place_pose
+geometry_msgs/PoseStamped place_pose
+bool use_eef
+bool go_home_after_finish
+float64 approach_distance
+float64 retreat_distance
+uint8 retry_times
+---
+bool success
+int32 error_code
+string message
+uint32 completed_steps
+bool canceled
+geometry_msgs/PoseStamped final_pose
+---
+uint8 current_stage
+uint32 completed_steps
+uint32 total_steps
+string stage_text

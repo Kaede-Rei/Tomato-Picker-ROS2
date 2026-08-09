@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<library path="tomato_picker_eef_controller">
+  <class
+    name="tomato_picker_eef/EefController"
+    type="tomato_picker_eef::EefController"
+    base_class_type="controller_interface::ControllerInterface">
+    <description>Same-process Damiao Torque_Pos controller sharing SerialArm main_can for the DM-Arm EEF.</description>
+  </class>
+</library>
