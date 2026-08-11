@@ -1,0 +1,31 @@
+gui:
+  title: Tomato-Picker Wrist Target GUI
+  width: 1280
+  height: 820
+
+topics:
+  color_image: /camera/wrist/color/image_raw
+  depth_image: /camera/wrist/depth/image_raw
+  depth_info: /camera/wrist/depth/camera_info
+  selected_target: /tomato_picker/gui/selected_target
+  pick_action: /tomato_picker/task/pick
+
+frames:
+  target_frame: base_link
+  tool_frame: tool0
+
+selection:
+  point_method: skeleton_centroid
+  mask_close_kernel: 5
+  mask_open_kernel: 3
+  depth_kernel_size: 7
+  depth_trim_ratio: 0.15
+  center_band_min_dist_px: 1.0
+
+pick:
+  pre_pick_distance: 0.15
+  approach_distance: 0.08
+  retreat_distance: 0.10
+  retry_times: 0
+  use_eef: true
+  go_home_after_finish: false

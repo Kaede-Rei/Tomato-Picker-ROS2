@@ -1,4 +1,6 @@
 geometry_msgs/PoseStamped target_pose
+bool use_pre_pick_pose
+geometry_msgs/PoseStamped pre_pick_pose
 bool use_approach_pose
 geometry_msgs/PoseStamped approach_pose
 bool use_retreat_pose
@@ -7,6 +9,7 @@ bool use_place_pose
 geometry_msgs/PoseStamped place_pose
 bool use_eef
 bool go_home_after_finish
+float64 pre_pick_distance
 float64 approach_distance
 float64 retreat_distance
 uint8 retry_times
@@ -18,6 +21,14 @@ uint32 completed_steps
 bool canceled
 geometry_msgs/PoseStamped final_pose
 ---
+uint8 STAGE_PRE_PICK=1
+uint8 STAGE_APPROACH=2
+uint8 STAGE_PICK=3
+uint8 STAGE_EEF_CLOSE=4
+uint8 STAGE_RETREAT=5
+uint8 STAGE_PLACE=6
+uint8 STAGE_EEF_OPEN=7
+uint8 STAGE_HOME=8
 uint8 current_stage
 uint32 completed_steps
 uint32 total_steps

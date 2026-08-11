@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <exception>
 #include <memory>
 #include <string>
@@ -75,6 +76,10 @@ tl::expected<DriverConfig, DamiaoEefError> load_config(const std::string& path) 
         config.bus = damiao_node["bus"].as<std::string>();
         config.serial_port = damiao_node["serial_port"].as<std::string>();
         config.baudrate = damiao_node["baudrate"].as<int>();
+
+        if(const char* value = std::getenv("TOMATO_PICKER_BUS"); value && *value) config.bus = value;
+        if(const char* value = std::getenv("TOMATO_PICKER_SERIAL_PORT"); value && *value) config.serial_port = value;
+        if(const char* value = std::getenv("TOMATO_PICKER_BAUDRATE"); value && *value) config.baudrate = std::stoi(value);
         config.motor_id = motor_node["motor_id"].as<std::uint32_t>();
         config.master_id = motor_node["master_id"].as<std::uint32_t>();
         const std::string motor_type = motor_node["motor_type"].as<std::string>();

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <exception>
 #include <functional>
+#include <cmath>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -36,14 +37,27 @@ constexpr std::int32_t kCanceled = 4;                ///< 任务被取消
 // ! ========================= 私 有 量 / 工 具 函 数 实 现 ========================= ! //
 
 /**
- * @brief 按 planning frame Z 轴生成接近或退出位姿
+ * @brief 沿目标位姿局部 Z 轴生成预采摘、接近或退出位姿
  * @param target 原目标位姿
- * @param delta_z Z 方向偏移 m
+ * @param delta_z 局部 Z 方向偏移 m
  * @return 偏移后的目标位姿
  */
-geometry_msgs::msg::PoseStamped offset_z(const geometry_msgs::msg::PoseStamped& target, double delta_z) {
+geometry_msgs::msg::PoseStamped offset_local_z(const geometry_msgs::msg::PoseStamped& target, double delta_z) {
     auto result = target;
-    result.pose.position.z += delta_z;
+    const auto& q = target.pose.orientation;
+    const double norm = std::sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+    if(norm <= 1.0e-9) {
+        result.pose.position.z += delta_z;
+        return result;
+    }
+
+    const double x = q.x / norm;
+    const double y = q.y / norm;
+    const double z = q.z / norm;
+    const double w = q.w / norm;
+    result.pose.position.x += 2.0 * (x * z + w * y) * delta_z;
+    result.pose.position.y += 2.0 * (y * z - w * x) * delta_z;
+    result.pose.position.z += (1.0 - 2.0 * (x * x + y * y)) * delta_z;
     return result;
 }
 
@@ -72,6 +86,7 @@ public:
         eef_service_name_ = declare_parameter<std::string>("eef_service", "/tomato_picker/eef/command");
         motion_timeout_sec_ = declare_parameter<double>("motion_timeout_sec", 30.0);
         service_timeout_sec_ = declare_parameter<double>("service_timeout_sec", 3.0);
+        default_pre_pick_distance_ = declare_parameter<double>("default_pre_pick_distance", 0.15);
         default_approach_distance_ = declare_parameter<double>("default_approach_distance", 0.08);
         default_retreat_distance_ = declare_parameter<double>("default_retreat_distance", 0.10);
         motion_velocity_scale_ = declare_parameter<double>("motion_velocity_scale", 0.15);
@@ -110,6 +125,7 @@ private:
         static_cast<void>(uuid);
         if(shutting_down_.load()) return rclcpp_action::GoalResponse::REJECT;
         if(goal->target_pose.header.frame_id.empty()) return rclcpp_action::GoalResponse::REJECT;
+        if(goal->use_pre_pick_pose && goal->pre_pick_pose.header.frame_id.empty()) return rclcpp_action::GoalResponse::REJECT;
         if(goal->use_approach_pose && goal->approach_pose.header.frame_id.empty()) return rclcpp_action::GoalResponse::REJECT;
         if(goal->use_retreat_pose && goal->retreat_pose.header.frame_id.empty()) return rclcpp_action::GoalResponse::REJECT;
         if(goal->use_place_pose && goal->place_pose.header.frame_id.empty()) return rclcpp_action::GoalResponse::REJECT;
@@ -164,41 +180,45 @@ private:
         }
 
         const auto goal = goal_handle->get_goal();
+        const double pre_pick_distance = goal->pre_pick_distance > 0.0 ? goal->pre_pick_distance : default_pre_pick_distance_;
         const double approach_distance = goal->approach_distance > 0.0 ? goal->approach_distance : default_approach_distance_;
         const double retreat_distance = goal->retreat_distance > 0.0 ? goal->retreat_distance : default_retreat_distance_;
-        const auto approach_pose = goal->use_approach_pose ? goal->approach_pose : offset_z(goal->target_pose, approach_distance);
-        const auto retreat_pose = goal->use_retreat_pose ? goal->retreat_pose : offset_z(goal->target_pose, retreat_distance);
+        const auto pre_pick_pose = goal->use_pre_pick_pose ? goal->pre_pick_pose : offset_local_z(goal->target_pose, pre_pick_distance);
+        const auto approach_pose = goal->use_approach_pose ? goal->approach_pose : offset_local_z(goal->target_pose, approach_distance);
+        const auto retreat_pose = goal->use_retreat_pose ? goal->retreat_pose : offset_local_z(goal->target_pose, retreat_distance);
 
         std::uint32_t completed = 0;
-        const std::uint32_t total_steps = 3 + (goal->use_eef ? 1U : 0U) + (goal->use_place_pose ? 1U : 0U) +
+        const std::uint32_t total_steps = 4 + (goal->use_eef ? 1U : 0U) + (goal->use_place_pose ? 1U : 0U) +
             ((goal->use_eef && goal->use_place_pose) ? 1U : 0U) + (goal->go_home_after_finish ? 1U : 0U);
 
-        if(!run_pose_step(goal_handle, approach_pose, "APPROACH", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "approach failed", completed);
+        if(!run_pose_step(goal_handle, pre_pick_pose, PickTarget::Feedback::STAGE_PRE_PICK, "PRE_PICK", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "pre-pick failed", completed);
         ++completed;
-        if(!run_pose_step(goal_handle, goal->target_pose, "MOVE_TARGET", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "target move failed", completed);
+        if(!run_pose_step(goal_handle, approach_pose, PickTarget::Feedback::STAGE_APPROACH, "APPROACH", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "approach failed", completed);
+        ++completed;
+        if(!run_pose_step(goal_handle, goal->target_pose, PickTarget::Feedback::STAGE_PICK, "PICK", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "pick pose failed", completed);
         ++completed;
 
         if(goal->use_eef) {
-            publish_feedback(goal_handle, 2, completed, total_steps, "EEF_CLOSE");
+            publish_feedback(goal_handle, PickTarget::Feedback::STAGE_EEF_CLOSE, completed, total_steps, "EEF_CLOSE");
             if(!run_eef(CommandEef::Request::CLOSE)) return finish_failed(goal_handle, result, kEefFailed, "eef close failed", completed);
             ++completed;
         }
 
-        if(!run_pose_step(goal_handle, retreat_pose, "RETREAT", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "retreat failed", completed);
+        if(!run_pose_step(goal_handle, retreat_pose, PickTarget::Feedback::STAGE_RETREAT, "RETREAT", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "retreat failed", completed);
         ++completed;
 
         if(goal->use_place_pose) {
-            if(!run_pose_step(goal_handle, goal->place_pose, "PLACE", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "place move failed", completed);
+            if(!run_pose_step(goal_handle, goal->place_pose, PickTarget::Feedback::STAGE_PLACE, "PLACE", completed, total_steps, goal->retry_times)) return finish_failed(goal_handle, result, kMotionFailed, "place move failed", completed);
             ++completed;
             if(goal->use_eef) {
-                publish_feedback(goal_handle, 5, completed, total_steps, "EEF_OPEN");
+                publish_feedback(goal_handle, PickTarget::Feedback::STAGE_EEF_OPEN, completed, total_steps, "EEF_OPEN");
                 if(!run_eef(CommandEef::Request::OPEN)) return finish_failed(goal_handle, result, kEefFailed, "eef open failed", completed);
                 ++completed;
             }
         }
 
         if(goal->go_home_after_finish) {
-            publish_feedback(goal_handle, 6, completed, total_steps, "HOME");
+            publish_feedback(goal_handle, PickTarget::Feedback::STAGE_HOME, completed, total_steps, "HOME");
             if(!run_home()) return finish_failed(goal_handle, result, kMotionFailed, "home failed", completed);
             ++completed;
         }
@@ -222,6 +242,7 @@ private:
      * @brief 执行一个位姿运动步骤
      * @param goal_handle PickTarget goal handle
      * @param target 目标位姿
+     * @param stage_id 阶段编号
      * @param stage 阶段名称
      * @param completed 已完成步骤数
      * @param total_steps 总步骤数
@@ -229,7 +250,7 @@ private:
      * @return 执行成功返回 true
      */
     bool run_pose_step(const std::shared_ptr<GoalHandlePickTarget> goal_handle, const geometry_msgs::msg::PoseStamped& target,
-        const std::string& stage, std::uint32_t completed, std::uint32_t total_steps, std::uint8_t retry_times) {
+        std::uint8_t stage_id, const std::string& stage, std::uint32_t completed, std::uint32_t total_steps, std::uint8_t retry_times) {
         MoveArm::Goal motion_goal;
         motion_goal.command_type = MoveArm::Goal::POSE;
         motion_goal.target_pose = target;
@@ -239,7 +260,7 @@ private:
 
         for(std::uint16_t attempt = 0; attempt <= retry_times; ++attempt) {
             if(cancel_requested_.load()) return false;
-            publish_feedback(goal_handle, 1, completed, total_steps, attempt == 0 ? stage : stage + "_RETRY");
+            publish_feedback(goal_handle, stage_id, completed, total_steps, attempt == 0 ? stage : stage + "_RETRY");
             if(run_motion(motion_goal)) return true;
         }
         return false;
@@ -398,6 +419,7 @@ private:
     std::string eef_service_name_;                                ///< EEF Service 名称
     double motion_timeout_sec_{ 30.0 };                           ///< 单个运动步骤超时 s
     double service_timeout_sec_{ 3.0 };                           ///< EEF 服务超时 s
+    double default_pre_pick_distance_{ 0.15 };                    ///< 默认预采摘距离 m
     double default_approach_distance_{ 0.08 };                    ///< 默认接近距离 m
     double default_retreat_distance_{ 0.10 };                     ///< 默认退出距离 m
     double motion_velocity_scale_{ 0.15 };                        ///< 任务级速度缩放

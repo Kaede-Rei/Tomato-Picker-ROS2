@@ -1,10 +1,17 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo, RegisterEventHandler
+from launch.actions import (
+    DeclareLaunchArgument,
+    GroupAction,
+    IncludeLaunchDescription,
+    LogInfo,
+    RegisterEventHandler,
+    SetEnvironmentVariable,
+)
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
-from launch_ros.actions import Node
+from launch_ros.actions import Node, PushRosNamespace
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
@@ -14,6 +21,9 @@ EEF_MODES = {"off", "mock", "damiao"}
 
 def generate_launch_description():
     robot_profile = LaunchConfiguration("robot_profile")
+    serial_port = LaunchConfiguration("serial_port")
+    baudrate = LaunchConfiguration("baudrate")
+    bus = LaunchConfiguration("bus")
     eef_mode = LaunchConfiguration("eef_mode")
     use_sim_time = LaunchConfiguration("use_sim_time")
 
@@ -26,6 +36,9 @@ def generate_launch_description():
         launch_arguments={
             "robot_profile": robot_profile,
             "use_sim_time": use_sim_time,
+            "serial_port": serial_port,
+            "baudrate": baudrate,
+            "bus": bus,
         }.items(),
     )
 
@@ -112,6 +125,46 @@ def generate_launch_description():
         ],
     )
 
+    wrist_camera = GroupAction(
+        condition=IfCondition(LaunchConfiguration("start_wrist_camera")),
+        actions=[
+            PushRosNamespace("camera"),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    PathJoinSubstitution(
+                        [FindPackageShare("orbbec_camera"), "launch", "gemini_330_series.launch.py"]
+                    )
+                ),
+                launch_arguments={
+                    "camera_name": "wrist",
+                    "depth_registration": "true",
+                    "enable_point_cloud": "false",
+                    "enable_colored_point_cloud": "false",
+                }.items(),
+            ),
+        ],
+    )
+
+    wrist_camera_mount_tf = Node(
+        package="tf2_ros",
+        executable="static_transform_publisher",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("publish_wrist_camera_mount_tf")),
+        arguments=[
+            "--x", "0", "--y", "0", "--z", "0",
+            "--roll", "0", "--pitch", "0", "--yaw", "0",
+            "--frame-id", LaunchConfiguration("wrist_camera_mount_frame"),
+            "--child-frame-id", LaunchConfiguration("wrist_camera_base_frame"),
+        ],
+    )
+
+    gui = Node(
+        package="tomato_picker_gui",
+        executable="wrist_target_gui",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("start_gui")),
+    )
+
     motion_actions = [
         LogInfo(msg="Tomato Motion starting after hardware readiness"),
         motion,
@@ -119,9 +172,10 @@ def generate_launch_description():
     ]
 
     app_actions = [
-        LogInfo(msg="Tomato Task/Perception starting after Motion readiness"),
+        LogInfo(msg="Tomato Task/Perception/GUI starting after Motion readiness"),
         task,
         perception,
+        gui,
     ]
 
     def after_arm_ready(event, context):
@@ -155,10 +209,23 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument("robot_profile", default_value="dm_arm_gray"),
+            DeclareLaunchArgument("serial_port", default_value=""),
+            DeclareLaunchArgument("baudrate", default_value=""),
+            DeclareLaunchArgument("bus", default_value=""),
             DeclareLaunchArgument("eef_mode", default_value="damiao"),
             DeclareLaunchArgument("start_perception", default_value="true"),
+            DeclareLaunchArgument("start_wrist_camera", default_value="false"),
+            DeclareLaunchArgument("publish_wrist_camera_mount_tf", default_value="false"),
+            DeclareLaunchArgument("wrist_camera_mount_frame", default_value="camera"),
+            DeclareLaunchArgument("wrist_camera_base_frame", default_value="camera_link"),
+            DeclareLaunchArgument("start_gui", default_value="false"),
             DeclareLaunchArgument("use_sim_time", default_value="false"),
+            SetEnvironmentVariable("TOMATO_PICKER_SERIAL_PORT", serial_port),
+            SetEnvironmentVariable("TOMATO_PICKER_BAUDRATE", baudrate),
+            SetEnvironmentVariable("TOMATO_PICKER_BUS", bus),
             serial_arm,
+            wrist_camera,
+            wrist_camera_mount_tf,
             arm_ready_gate,
             RegisterEventHandler(OnProcessExit(target_action=arm_ready_gate, on_exit=after_arm_ready)),
             RegisterEventHandler(OnProcessExit(target_action=eef_spawner, on_exit=after_eef_spawn)),

@@ -2,8 +2,8 @@ cloud_preprocessor:
   ros__parameters:
     topics:
       color_image: /camera/wrist/color/image_raw
-      depth_image: /camera/wrist/depth_registered/image_raw
-      depth_info: /camera/wrist/depth_registered/camera_info
+      depth_image: /camera/wrist/depth/image_raw
+      depth_info: /camera/wrist/depth/camera_info
       cloud_raw: /tomato_picker/perception/cloud/raw
       cloud_base: /tomato_picker/perception/cloud/base
       cloud_filtered: /tomato_picker/perception/cloud/filtered
