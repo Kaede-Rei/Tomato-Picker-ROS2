@@ -31,7 +31,7 @@ constexpr std::chrono::milliseconds kHomingPollPeriod{ 10 };  ///< homing 反馈
 constexpr std::uint32_t kCanIdMaximum = 0x7FF;                ///< 标准 CAN ID 上界
 constexpr std::uint32_t kCanFilterMask = 0x7FF;               ///< EEF CAN 精确过滤掩码
 constexpr std::uint32_t kEefMotorId = 0x07;                   ///< 固定 EEF 电机 ID
-constexpr std::uint32_t kEefMasterId = 0x17;                  ///< 固定 EEF Master ID
+constexpr std::uint32_t kEefMasterId = 0x00;                  ///< 固定 EEF Master ID
 
 /**
  * @brief 从 damiao_eef.yaml 读取的 EEF 硬件配置
@@ -226,8 +226,7 @@ const char* damiao_eef_error_string(DamiaoEefError error) noexcept {
  * @brief 构造未配置的 DM4310 EEF Driver
  */
 DamiaoEefDriver::DamiaoEefDriver()
-    : impl_(std::make_unique<Impl>()) {
-}
+    : impl_(std::make_unique<Impl>()) {}
 
 /**
  * @brief 安全释放 EEF Driver 资源

@@ -4,8 +4,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-TOMATO_PICKER_SRC = SRC / "tomato_picker"
+TOMATO = ROOT / "src" / "tomato_picker"
 EXPECTED = {
     "interfaces": "tomato_picker_interfaces",
     "perception": "tomato_picker_perception",
@@ -17,40 +16,57 @@ EXPECTED = {
 
 
 def main() -> int:
-    if not TOMATO_PICKER_SRC.is_dir():
-        print(f"missing source root: {TOMATO_PICKER_SRC.relative_to(ROOT)}")
-        return 1
-
-    expected_directories = {Path(directory) for directory in EXPECTED}
-    found_directories = {
-        package_xml.parent.relative_to(TOMATO_PICKER_SRC)
-        for package_xml in TOMATO_PICKER_SRC.rglob("package.xml")
+    found = {
+        path.parent.relative_to(TOMATO)
+        for path in TOMATO.rglob("package.xml")
     }
-    if found_directories != expected_directories:
-        missing = sorted(str(path) for path in expected_directories - found_directories)
-        extra = sorted(str(path) for path in found_directories - expected_directories)
-        if missing:
-            print(f"missing ROS packages: {missing}")
-        if extra:
-            print(f"unexpected ROS packages: {extra}")
+    expected = {Path(name) for name in EXPECTED}
+    if found != expected:
+        print(f"package layout mismatch: expected={sorted(map(str, expected))} found={sorted(map(str, found))}")
         return 1
 
-    for directory, package in sorted(EXPECTED.items()):
-        package_xml = TOMATO_PICKER_SRC / directory / "package.xml"
-        root = ET.parse(package_xml).getroot()
-        name = root.findtext("name")
+    for directory, package in EXPECTED.items():
+        name = ET.parse(TOMATO / directory / "package.xml").getroot().findtext("name")
         if name != package:
-            print(f"package name mismatch: {package_xml}: {name}")
+            print(f"package name mismatch: {directory}: {name}")
             return 1
 
-    forbidden = ("piper_sdk", "piper_ros", "piper_noetic")
-    for path in TOMATO_PICKER_SRC.rglob("*"):
-        if not path.is_file() or path.suffix not in {".cpp", ".hpp", ".h", ".py", ".xml", ".txt"}:
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for token in forbidden:
-            if token in text:
-                print(f"forbidden legacy dependency '{token}' in {path.relative_to(ROOT)}")
+    launch_files = sorted((TOMATO / "bringup" / "launch").glob("*.launch.py"))
+    if [path.name for path in launch_files] != ["bringup.launch.py"]:
+        print(f"bringup must expose only bringup.launch.py: {[path.name for path in launch_files]}")
+        return 1
+
+    launch_text = launch_files[0].read_text(encoding="utf-8")
+    required = [
+        "serial_arm_ros2_control",
+        "moveit.launch.py",
+        "eef_controller",
+        "wait_for_arm_ready",
+        "wait_for_eef_ready",
+    ]
+    forbidden = ["ros2_control_node", "hardware_spawner", "MoveItConfigsBuilder", "profile_utils"]
+    for token in required:
+        if token not in launch_text:
+            print(f"bringup missing required composition token: {token}")
+            return 1
+    for token in forbidden:
+        if token in launch_text:
+            print(f"bringup reimplements SerialArm responsibility: {token}")
+            return 1
+
+    repos = (ROOT / "repos" / "serial_arm.repos").read_text(encoding="utf-8")
+    if "version: main" not in repos:
+        print("SerialArm-Core must track main")
+        return 1
+
+    for package in ("interfaces", "perception", "motion", "task"):
+        package_root = TOMATO / package
+        for path in package_root.rglob("*"):
+            if not path.is_file() or path.suffix not in {".cpp", ".hpp", ".h", ".xml", ".yaml", ".py"}:
+                continue
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            if "serial_arm" in text.lower() or "damiao" in text.lower():
+                print(f"upper-layer package depends on arm backend: {path.relative_to(ROOT)}")
                 return 1
 
     print("structure check passed")

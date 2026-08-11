@@ -19,6 +19,7 @@ find_package(rclcpp REQUIRED)
 find_package(serial_arm_core CONFIG REQUIRED)
 find_package(serial_arm_hardware_damiao REQUIRED)
 find_package(serial_arm_protocol_damiao_usb2can CONFIG REQUIRED)
+find_package(std_srvs REQUIRED)
 find_package(tomato_picker_interfaces REQUIRED)
 find_package(yaml-cpp REQUIRED)
 
@@ -48,6 +49,7 @@ ament_target_dependencies(tomato_picker_eef_controller
   serial_arm_core
   serial_arm_hardware_damiao
   serial_arm_protocol_damiao_usb2can
+  std_srvs
   tomato_picker_interfaces
 )
 target_link_libraries(tomato_picker_eef_controller
@@ -57,7 +59,7 @@ target_link_libraries(tomato_picker_eef_controller
 )
 
 add_executable(eef_mock_node src/eef_mock_node.cpp)
-ament_target_dependencies(eef_mock_node rclcpp tomato_picker_interfaces)
+ament_target_dependencies(eef_mock_node rclcpp std_srvs tomato_picker_interfaces)
 
 pluginlib_export_plugin_description_file(controller_interface eef_controller_plugin.xml)
 
@@ -96,6 +98,7 @@ ament_export_dependencies(
   serial_arm_core
   serial_arm_hardware_damiao
   serial_arm_protocol_damiao_usb2can
+  std_srvs
   tomato_picker_interfaces
 )
 

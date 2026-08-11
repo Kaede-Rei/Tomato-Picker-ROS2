@@ -1,4 +1,5 @@
 #include <rclcpp/rclcpp.hpp>
+#include <std_srvs/srv/trigger.hpp>
 
 #include "tomato_picker_interfaces/srv/command_eef.hpp"
 
@@ -37,17 +38,25 @@ constexpr std::int32_t kOutOfRange = 2;       ///< 位置超出范围
 class EefMockNode final : public rclcpp::Node {
 public:
     using CommandEef = tomato_picker_interfaces::srv::CommandEef;
+    using Trigger = std_srvs::srv::Trigger;
 
     /**
-     * @brief 构造 Mock EEF 节点并创建命令服务
+     * @brief 构造 Mock EEF 节点并创建服务
      */
     EefMockNode()
         : Node("eef_mock_node") {
         const auto service_name = declare_parameter<std::string>("service_name", "/tomato_picker/eef/command");
+        const auto ready_service_name = declare_parameter<std::string>("ready_service_name", "/tomato_picker/eef/ready");
         position_ = declare_parameter<double>("initial_position", 0.0);
         service_ = create_service<CommandEef>(
             service_name,
             std::bind(&EefMockNode::command_callback, this, std::placeholders::_1, std::placeholders::_2));
+        ready_service_ = create_service<Trigger>(
+            ready_service_name,
+            [](const Trigger::Request::SharedPtr, Trigger::Response::SharedPtr response) {
+                response->success = true;
+                response->message = "READY";
+            });
         RCLCPP_INFO(get_logger(), "EEF mock started; service=%s", service_name.c_str());
     }
 
@@ -92,7 +101,8 @@ private:
     }
 
 private:
-    rclcpp::Service<CommandEef>::SharedPtr service_;  ///< EEF mock Service
+    rclcpp::Service<CommandEef>::SharedPtr service_;  ///< EEF command Service
+    rclcpp::Service<Trigger>::SharedPtr ready_service_;  ///< EEF READY Service
     std::mutex mutex_;                                ///< mock 状态互斥
     double position_{ 0.0 };                          ///< 归一化 mock 位置
 };

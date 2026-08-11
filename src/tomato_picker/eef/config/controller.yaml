@@ -1,5 +1,6 @@
 eef_controller:
   ros__parameters:
     service_name: /tomato_picker/eef/command
+    ready_service_name: /tomato_picker/eef/ready
     # Empty resolves to tomato_picker_eef/config/damiao_eef.yaml.
     eef_config: ""

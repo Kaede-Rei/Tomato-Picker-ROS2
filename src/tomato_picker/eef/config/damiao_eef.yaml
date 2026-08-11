@@ -1,6 +1,6 @@
 # DM4310 EEF Torque_Pos configuration
 #
-# Identity, homing and command formulas reproduce Dual-DM-Arm-LeRobot IL-RL.
+# Motor identity follows the verified physical bus; homing and command formulas follow the validated DM4310 behavior.
 # The bus settings must match the SerialArm ARM profile so BusPool reuses main_can.
 
 damiao:
@@ -10,7 +10,7 @@ damiao:
 
   motor:
     motor_id: 7
-    master_id: 23
+    master_id: 0
     motor_type: DM4310
 
 eef:

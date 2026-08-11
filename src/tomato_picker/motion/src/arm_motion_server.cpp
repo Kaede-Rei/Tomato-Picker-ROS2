@@ -1,6 +1,7 @@
 #include <geometry_msgs/msg/pose.hpp>
 #include <moveit/move_group_interface/move_group_interface.h>
 #include <moveit_msgs/msg/robot_trajectory.hpp>
+#include <rclcpp/parameter_client.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_action/rclcpp_action.hpp>
 
@@ -10,12 +11,14 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <chrono>
 #include <exception>
 #include <functional>
 #include <map>
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 namespace tomato_picker_motion {
@@ -128,6 +131,37 @@ constexpr std::int32_t kCanceled = 4;             ///< Action 被取消
 double normalized_scale(double value, double fallback) {
     if(value <= 0.0) return fallback;
     return std::clamp(value, 0.01, 1.0);
+}
+
+/**
+ * @brief 从已运行的 move_group 同步 RobotModelLoader 所需参数
+ * @param node Motion capability 节点
+ */
+void sync_moveit_model_parameters(const rclcpp::Node::SharedPtr& node) {
+    auto client = std::make_shared<rclcpp::SyncParametersClient>(node, "/move_group");
+    if(!client->wait_for_service(std::chrono::seconds(5))) {
+        RCLCPP_WARN(node->get_logger(), "move_group parameter service is not available; using local MoveIt defaults");
+        return;
+    }
+
+    const std::vector<std::string> prefixes = {
+        "robot_description",
+        "robot_description_semantic",
+        "robot_description_kinematics",
+        "robot_description_planning",
+    };
+    const auto listed = client->list_parameters(prefixes, 16);
+    if(listed.names.empty()) {
+        RCLCPP_WARN(node->get_logger(), "move_group exposes no robot model parameters");
+        return;
+    }
+
+    for(const auto& parameter : client->get_parameters(listed.names)) {
+        if(parameter.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET) continue;
+        if(!node->has_parameter(parameter.get_name())) {
+            node->declare_parameter(parameter.get_name(), parameter.get_parameter_value());
+        }
+    }
 }
 
 } // namespace
@@ -420,6 +454,7 @@ int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
 
     auto node = std::make_shared<rclcpp::Node>("arm_motion_node", rclcpp::NodeOptions().automatically_declare_parameters_from_overrides(false));
+    tomato_picker_motion::sync_moveit_model_parameters(node);
     auto server = std::make_shared<tomato_picker_motion::ArmMotionServer>(node);
 
     rclcpp::executors::MultiThreadedExecutor executor;

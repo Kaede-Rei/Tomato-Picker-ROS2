@@ -1,6 +1,7 @@
 #pragma once
 
 #include "controller_interface/controller_interface.hpp"
+#include "std_srvs/srv/trigger.hpp"
 #include "tomato_picker_eef/eef_worker.hpp"
 #include "tomato_picker_interfaces/srv/command_eef.hpp"
 
@@ -20,6 +21,7 @@ class EefController final : public controller_interface::ControllerInterface {
 public:
     using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
     using CommandEef = tomato_picker_interfaces::srv::CommandEef;
+    using Trigger = std_srvs::srv::Trigger;
 
     /**
      * @brief 声明 controller 参数
@@ -85,11 +87,22 @@ private:
         const CommandEef::Request::SharedPtr request,
         CommandEef::Response::SharedPtr response);
 
+    /**
+     * @brief 返回 EEF Worker 的启动就绪状态
+     * @param request Trigger 空请求
+     * @param response READY 时 success=true，其余状态写入 message
+     */
+    void ready_callback(
+        const Trigger::Request::SharedPtr request,
+        Trigger::Response::SharedPtr response);
+
 private:
-    std::shared_ptr<EefWorker> worker_;                  ///< 同进程非实时硬件 I/O Worker
-    rclcpp::Service<CommandEef>::SharedPtr command_service_;  ///< EEF 业务 Service
-    std::string service_name_;                          ///< Service 名称
-    std::string eef_config_;                            ///< EEF Driver 配置路径
+    std::shared_ptr<EefWorker> worker_;                       ///< 同进程非实时硬件 I/O Worker
+    rclcpp::Service<CommandEef>::SharedPtr command_service_; ///< EEF 业务 Service
+    rclcpp::Service<Trigger>::SharedPtr ready_service_;       ///< EEF READY 查询 Service
+    std::string service_name_;                               ///< CommandEef Service 名称
+    std::string ready_service_name_;                         ///< READY 查询 Service 名称
+    std::string eef_config_;                                 ///< EEF Driver 配置路径
 };
 
 // ! ========================= 模 版 方 法 实 现 ========================= ! //

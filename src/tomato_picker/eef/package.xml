@@ -2,7 +2,7 @@
 <package format="3">
   <name>tomato_picker_eef</name>
   <version>0.2.0</version>
-  <description>Same-process Damiao Torque_Pos end-effector capability for Tomato-Picker</description>
+  <description>End-effector capability for Tomato-Picker</description>
   <maintainer email="kaerei@foxmail.com">Kaede Rei</maintainer>
   <license>MIT</license>
 
@@ -15,6 +15,7 @@
   <depend>serial_arm_core</depend>
   <depend>serial_arm_hardware_damiao</depend>
   <depend>serial_arm_protocol_damiao_usb2can</depend>
+  <depend>std_srvs</depend>
   <depend>tomato_picker_interfaces</depend>
   <depend>yaml-cpp</depend>
 

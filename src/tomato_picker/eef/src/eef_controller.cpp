@@ -42,6 +42,7 @@ constexpr std::int32_t kHoming = 5;           ///< EEF 正在 homing
 EefController::CallbackReturn EefController::on_init() {
     try {
         auto_declare<std::string>("service_name", "/tomato_picker/eef/command");
+        auto_declare<std::string>("ready_service_name", "/tomato_picker/eef/ready");
         auto_declare<std::string>("eef_config", "");
         return CallbackReturn::SUCCESS;
     }
@@ -76,6 +77,7 @@ EefController::CallbackReturn EefController::on_configure(const rclcpp_lifecycle
     static_cast<void>(previous_state);
     const auto node = get_node();
     service_name_ = node->get_parameter("service_name").as_string();
+    ready_service_name_ = node->get_parameter("ready_service_name").as_string();
     eef_config_ = node->get_parameter("eef_config").as_string();
     if(eef_config_.empty()) {
         try {
@@ -104,8 +106,12 @@ EefController::CallbackReturn EefController::on_configure(const rclcpp_lifecycle
     command_service_ = node->create_service<CommandEef>(
         service_name_,
         std::bind(&EefController::command_callback, this, std::placeholders::_1, std::placeholders::_2));
-    RCLCPP_INFO(node->get_logger(), "EEF configured with non-realtime worker; service=%s config=%s",
-        service_name_.c_str(), eef_config_.c_str());
+    ready_service_ = node->create_service<Trigger>(
+        ready_service_name_,
+        std::bind(&EefController::ready_callback, this, std::placeholders::_1, std::placeholders::_2));
+    RCLCPP_INFO(node->get_logger(),
+        "EEF configured with non-realtime worker; service=%s ready_service=%s config=%s",
+        service_name_.c_str(), ready_service_name_.c_str(), eef_config_.c_str());
     return CallbackReturn::SUCCESS;
 }
 
@@ -161,6 +167,7 @@ EefController::CallbackReturn EefController::on_deactivate(const rclcpp_lifecycl
 EefController::CallbackReturn EefController::on_cleanup(const rclcpp_lifecycle::State& previous_state) {
     static_cast<void>(previous_state);
     command_service_.reset();
+    ready_service_.reset();
     auto worker = std::atomic_exchange(&worker_, std::shared_ptr<EefWorker>{});
     if(worker) worker->shutdown();
     return CallbackReturn::SUCCESS;
@@ -212,6 +219,50 @@ void EefController::command_callback(
             break;
     }
     response->success = false;
+}
+
+
+/**
+ * @brief 返回 EEF Worker 的启动就绪状态
+ * @param request Trigger 空请求
+ * @param response READY 时 success=true，其余状态写入 message
+ */
+void EefController::ready_callback(
+    const Trigger::Request::SharedPtr request,
+    Trigger::Response::SharedPtr response) {
+    static_cast<void>(request);
+    const auto worker = std::atomic_load(&worker_);
+    if(!worker) {
+        response->success = false;
+        response->message = "UNCONFIGURED";
+        return;
+    }
+
+    switch(worker->state()) {
+        case EefWorkerState::READY:
+            response->success = worker->hardware_ready();
+            response->message = response->success ? "READY" : "HOMING";
+            return;
+        case EefWorkerState::HOMING:
+            response->success = false;
+            response->message = "HOMING";
+            return;
+        case EefWorkerState::ERROR:
+            response->success = false;
+            response->message = "ERROR";
+            return;
+        case EefWorkerState::INACTIVE:
+            response->success = false;
+            response->message = "INACTIVE";
+            return;
+        case EefWorkerState::SHUTDOWN:
+            response->success = false;
+            response->message = "SHUTDOWN";
+            return;
+    }
+
+    response->success = false;
+    response->message = "UNKNOWN";
 }
 
 } // namespace tomato_picker_eef
