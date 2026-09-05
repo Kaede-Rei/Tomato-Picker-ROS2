@@ -256,7 +256,7 @@ ros2 service call \
   tomato_picker_interfaces/srv/CommandEef \
   "{command: 0, value: 0.0}"
 
-# SET_POSITION, normalized [0, 1]
+# SET_POSITION, normalized [0, 1] -> TODO:新夹爪应修正为 [0, 0.91]
 ros2 service call \
   /tomato_picker/eef/command \
   tomato_picker_interfaces/srv/CommandEef \
