@@ -10,10 +10,13 @@
 
   <exec_depend>controller_manager</exec_depend>
   <exec_depend>controller_manager_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>moveit_msgs</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
   <exec_depend>rclpy</exec_depend>
+  <exec_depend>serial_arm_core</exec_depend>
   <exec_depend>serial_arm_ros2_control</exec_depend>
   <exec_depend>std_srvs</exec_depend>
   <exec_depend>tf2_ros</exec_depend>
@@ -23,6 +26,8 @@
   <exec_depend>tomato_picker_motion</exec_depend>
   <exec_depend>tomato_picker_perception</exec_depend>
   <exec_depend>tomato_picker_task</exec_depend>
+
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
